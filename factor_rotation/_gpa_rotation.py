@@ -19,11 +19,19 @@ References
 """
 
 from __future__ import division
-import numpy as np
+
 import unittest
 
-def GPA(A, ff=None, vgQ=None, T=None, max_tries=501,
-       rotation_method = 'orthogonal', tol=1e-5):
+import numpy as np
+
+
+def GPA(A,
+        ff=None,
+        vgQ=None,
+        T=None,
+        max_tries=501,
+        rotation_method='orthogonal',
+        tol=1e-5):
     """
     The gradient projection algorithm (GPA) minimizes a target function
     :math:`\phi(L)`, where :math:`L` is a matrix with rotated factors.
@@ -57,97 +65,102 @@ def GPA(A, ff=None, vgQ=None, T=None, max_tries=501,
     """
     #pre processing
     if rotation_method not in ['orthogonal', 'oblique']:
-        raise ValueError('rotation_method should be one of {orthogonal, oblique}')
+        raise ValueError(
+            'rotation_method should be one of {orthogonal, oblique}')
     if vgQ is None:
         if ff is None:
             raise ValueError('ff should be provided if vgQ is not')
-        derivative_free=True
-        Gff = lambda x: Gf(x, lambda y: ff(T=y,A=A,L=None))
+        derivative_free = True
+
+        def Gff(x):
+            return Gf(x, lambda y: ff(T=y, A=A, L=None))
     else:
-        derivative_free=False
+        derivative_free = False
     if T is None:
-        T=np.eye(A.shape[1])
+        T = np.eye(A.shape[1])
     #pre processing for iteration
-    al=1
-    table=[]
+    al = 1
+    table = []
     #pre processing for iteration: initialize f and G
     if derivative_free:
-        f=ff(T=T,A=A,L=None)
-        G=Gff(T)
-    elif rotation_method == 'orthogonal': # and not derivative_free
-        L= A.dot(T)
-        f,Gq = vgQ(L=L)
-        G=(A.T).dot(Gq)
-    else: #i.e. rotation_method == 'oblique' and not derivative_free
-        Ti=np.linalg.inv(T)
-        L= A.dot(Ti.T)
-        f,Gq = vgQ(L=L)
-        G=-((L.T).dot(Gq).dot(Ti)).T
+        f = ff(T=T, A=A, L=None)
+        G = Gff(T)
+    elif rotation_method == 'orthogonal':  # and not derivative_free
+        L = A.dot(T)
+        f, Gq = vgQ(L=L)
+        G = (A.T).dot(Gq)
+    else:  #i.e. rotation_method == 'oblique' and not derivative_free
+        Ti = np.linalg.inv(T)
+        L = A.dot(Ti.T)
+        f, Gq = vgQ(L=L)
+        G = -((L.T).dot(Gq).dot(Ti)).T
     #iteration
-    for i_try in range(0,max_tries):
+    for i_try in range(0, max_tries):
         #determine Gp
         if rotation_method == 'orthogonal':
-            M=(T.T).dot(G)
-            S=(M+M.T)/2
-            Gp=G-T.dot(S)
-        else: #i.e. if rotation_method == 'oblique':
-            Gp=G-T.dot(np.diag(np.sum(T*G,axis=0)))
-        s=np.linalg.norm(Gp,'fro');
+            M = (T.T).dot(G)
+            S = (M + M.T) / 2
+            Gp = G - T.dot(S)
+        else:  #i.e. if rotation_method == 'oblique':
+            Gp = G - T.dot(np.diag(np.sum(T * G, axis=0)))
+        s = np.linalg.norm(Gp, 'fro')
         table.append([i_try, f, np.log10(s), al])
         #if we are close stop
         if s < tol: break
         #update T
-        al=2*al
+        al = 2 * al
         for i in range(11):
             #determine Tt
-            X=T-al*Gp
+            X = T - al * Gp
             if rotation_method == 'orthogonal':
-                U,D,V=np.linalg.svd(X,full_matrices=False)
-                Tt=U.dot(V)
-            else: #i.e. if rotation_method == 'oblique':
-                v=1/np.sqrt(np.sum(X**2,axis=0))
-                Tt=X.dot(np.diag(v))
+                U, D, V = np.linalg.svd(X, full_matrices=False)
+                Tt = U.dot(V)
+            else:  #i.e. if rotation_method == 'oblique':
+                v = 1 / np.sqrt(np.sum(X**2, axis=0))
+                Tt = X.dot(np.diag(v))
             #calculate objective using Tt
             if derivative_free:
-                ft=ff(T=Tt,A=A,L=None)
-            elif rotation_method == 'orthogonal': # and not derivative_free
-                L=A.dot(Tt)
-                ft,Gq=vgQ(L=L);
-            else: #i.e. rotation_method == 'oblique' and not derivative_free
-                Ti=np.linalg.inv(Tt)
-                L= A.dot(Ti.T)
-                ft,Gq = vgQ(L=L)
+                ft = ff(T=Tt, A=A, L=None)
+            elif rotation_method == 'orthogonal':  # and not derivative_free
+                L = A.dot(Tt)
+                ft, Gq = vgQ(L=L)
+            else:  #i.e. rotation_method == 'oblique' and not derivative_free
+                Ti = np.linalg.inv(Tt)
+                L = A.dot(Ti.T)
+                ft, Gq = vgQ(L=L)
             #if sufficient improvement in objective -> use this T
-            if ft<f-.5*s**2*al: break
-            al=al/2
+            if ft < f - .5 * s**2 * al: break
+            al = al / 2
         #post processing for next iteration
-        T=Tt
-        f=ft
+        T = Tt
+        f = ft
         if derivative_free:
-            G=Gff(T)
-        elif rotation_method == 'orthogonal': # and not derivative_free
-            G=(A.T).dot(Gq)
-        else: #i.e. rotation_method == 'oblique' and not derivative_free
-            G=-((L.T).dot(Gq).dot(Ti)).T
+            G = Gff(T)
+        elif rotation_method == 'orthogonal':  # and not derivative_free
+            G = (A.T).dot(Gq)
+        else:  #i.e. rotation_method == 'oblique' and not derivative_free
+            G = -((L.T).dot(Gq).dot(Ti)).T
     #post processing
-    Th=T
-    Lh = rotateA(A,T,rotation_method=rotation_method)
+    Th = T
+    Lh = rotateA(A, T, rotation_method=rotation_method)
     Phi = (T.T).dot(T)
     return Lh, Phi, Th, table
+
 
 def Gf(T, ff):
     """
     Subroutine for the gradient of f using numerical derivatives.
     """
-    k=T.shape[0]
+    k = T.shape[0]
     ep = 1e-4
-    G=np.zeros((k,k))
+    G = np.zeros((k, k))
     for r in range(k):
         for s in range(k):
-            dT=np.zeros((k,k))
-            dT[r,s]=ep
-            G[r,s]=(ff(T+dT)-ff(T-dT))/(2*ep);
+            dT = np.zeros((k, k))
+            dT[r, s] = ep
+            G[r, s] = (ff(T + dT) - ff(T - dT)) / (2 * ep)
     return G
+
 
 def rotateA(A, T, rotation_method='orthogonal'):
     r"""
@@ -158,14 +171,19 @@ def rotateA(A, T, rotation_method='orthogonal'):
     in the interpretation.
     """
     if rotation_method == 'orthogonal':
-        L=A.dot(T)
+        L = A.dot(T)
     elif rotation_method == 'oblique':
-        L=A.dot(np.linalg.inv(T.T))
-    else: #i.e. if rotation_method == 'oblique':
-        raise ValueError('rotation_method should be one of {orthogonal, oblique}')
+        L = A.dot(np.linalg.inv(T.T))
+    else:  #i.e. if rotation_method == 'oblique':
+        raise ValueError(
+            'rotation_method should be one of {orthogonal, oblique}')
     return L
 
-def oblimin_objective(L=None, A=None, T=None, gamma=0,
+
+def oblimin_objective(L=None,
+                      A=None,
+                      T=None,
+                      gamma=0,
                       rotation_method='orthogonal',
                       return_gradient=True):
     r"""
@@ -228,22 +246,23 @@ def oblimin_objective(L=None, A=None, T=None, gamma=0,
         toggles return of gradient
     """
     if L is None:
-        assert(A is not None and T is not None)
-        L=rotateA(A,T,rotation_method=rotation_method)
-    p,k = L.shape
-    L2=L**2
-    N=np.ones((k,k))-np.eye(k)
-    if np.isclose(gamma,0):
-        X=L2.dot(N)
+        assert (A is not None and T is not None)
+        L = rotateA(A, T, rotation_method=rotation_method)
+    p, k = L.shape
+    L2 = L**2
+    N = np.ones((k, k)) - np.eye(k)
+    if np.isclose(gamma, 0):
+        X = L2.dot(N)
     else:
-        C=np.ones((p,p))/p
-        X=(np.eye(p)-gamma*C).dot(L2).dot(N)
-    phi=np.sum(L2*X)/4
+        C = np.ones((p, p)) / p
+        X = (np.eye(p) - gamma * C).dot(L2).dot(N)
+    phi = np.sum(L2 * X) / 4
     if return_gradient:
-        Gphi=L*X
+        Gphi = L * X
         return phi, Gphi
     else:
         return phi
+
 
 def orthomax_objective(L=None, A=None, T=None, gamma=0, return_gradient=True):
     r"""
@@ -287,25 +306,29 @@ def orthomax_objective(L=None, A=None, T=None, gamma=0, return_gradient=True):
     return_gradient : boolean (default True)
         toggles return of gradient
     """
-    assert 0<=gamma<=1, "Gamma should be between 0 and 1"
+    assert 0 <= gamma <= 1, "Gamma should be between 0 and 1"
     if L is None:
-        assert(A is not None and T is not None)
-        L=rotateA(A,T,rotation_method='orthogonal')
-    p,k = L.shape
-    L2=L**2
-    if np.isclose(gamma,0):
-        X=L2
+        assert (A is not None and T is not None)
+        L = rotateA(A, T, rotation_method='orthogonal')
+    p, k = L.shape
+    L2 = L**2
+    if np.isclose(gamma, 0):
+        X = L2
     else:
-        C=np.ones((p,p))/p
-        X=(np.eye(p)-gamma*C).dot(L2)
-    phi=-np.sum(L2*X)/4
+        C = np.ones((p, p)) / p
+        X = (np.eye(p) - gamma * C).dot(L2)
+    phi = -np.sum(L2 * X) / 4
     if return_gradient:
-        Gphi=-L*X
+        Gphi = -L * X
         return phi, Gphi
     else:
         return phi
 
-def CF_objective(L=None, A=None, T=None, kappa=0,
+
+def CF_objective(L=None,
+                 A=None,
+                 T=None,
+                 kappa=0,
                  rotation_method='orthogonal',
                  return_gradient=True):
     r"""
@@ -365,28 +388,29 @@ def CF_objective(L=None, A=None, T=None, kappa=0,
     return_gradient : boolean (default True)
         toggles return of gradient
     """
-    assert 0<=kappa<=1, "Kappa should be between 0 and 1"
+    assert 0 <= kappa <= 1, "Kappa should be between 0 and 1"
     if L is None:
-        assert(A is not None and T is not None)
-        L=rotateA(A,T,rotation_method=rotation_method)
-    p,k = L.shape
-    L2=L**2
-    X=None
-    if not np.isclose(kappa,1):
-        N=np.ones((k,k))-np.eye(k)
-        X=(1-kappa)*L2.dot(N)
-    if not np.isclose(kappa,0):
-        M=np.ones((p,p))-np.eye(p)
+        assert (A is not None and T is not None)
+        L = rotateA(A, T, rotation_method=rotation_method)
+    p, k = L.shape
+    L2 = L**2
+    X = None
+    if not np.isclose(kappa, 1):
+        N = np.ones((k, k)) - np.eye(k)
+        X = (1 - kappa) * L2.dot(N)
+    if not np.isclose(kappa, 0):
+        M = np.ones((p, p)) - np.eye(p)
         if X is None:
-            X=kappa*M.dot(L2)
+            X = kappa * M.dot(L2)
         else:
-            X+=kappa*M.dot(L2)
-    phi=np.sum(L2*X)/4
+            X += kappa * M.dot(L2)
+    phi = np.sum(L2 * X) / 4
     if return_gradient:
-        Gphi=L*X
+        Gphi = L * X
         return phi, Gphi
     else:
         return phi
+
 
 def vgQ_target(H, L=None, A=None, T=None, rotation_method='orthogonal'):
     r"""
@@ -429,11 +453,12 @@ def vgQ_target(H, L=None, A=None, T=None, rotation_method='orthogonal'):
         should be one of {orthogonal, oblique}
     """
     if L is None:
-        assert(A is not None and T is not None)
-        L=rotateA(A,T,rotation_method=rotation_method)
-    q=np.linalg.norm(L-H,'fro')**2
-    Gq=2*(L-H);
+        assert (A is not None and T is not None)
+        L = rotateA(A, T, rotation_method=rotation_method)
+    q = np.linalg.norm(L - H, 'fro')**2
+    Gq = 2 * (L - H)
     return q, Gq
+
 
 def ff_target(H, L=None, A=None, T=None, rotation_method='orthogonal'):
     r"""
@@ -470,9 +495,10 @@ def ff_target(H, L=None, A=None, T=None, rotation_method='orthogonal'):
         should be one of {orthogonal, oblique}
     """
     if L is None:
-        assert(A is not None and T is not None)
-        L=rotateA(A,T,rotation_method=rotation_method)
-    return np.linalg.norm(L-H,'fro')**2
+        assert (A is not None and T is not None)
+        L = rotateA(A, T, rotation_method=rotation_method)
+    return np.linalg.norm(L - H, 'fro')**2
+
 
 def vgQ_partial_target(H, W=None, L=None, A=None, T=None):
     r"""
@@ -513,11 +539,12 @@ def vgQ_partial_target(H, W=None, L=None, A=None, T=None):
     if W is None:
         return vgQ_target(H, L=L, A=A, T=T)
     if L is None:
-        assert(A is not None and T is not None)
-        L=rotateA(A,T,rotation_method='orthogonal')
-    q=np.linalg.norm(W*(L-H),'fro')**2
-    Gq=2*W*(L-H)
+        assert (A is not None and T is not None)
+        L = rotateA(A, T, rotation_method='orthogonal')
+    q = np.linalg.norm(W * (L - H), 'fro')**2
+    Gq = 2 * W * (L - H)
     return q, Gq
+
 
 def ff_partial_target(H, W=None, L=None, A=None, T=None):
     r"""
@@ -554,20 +581,17 @@ def ff_partial_target(H, W=None, L=None, A=None, T=None):
     if W is None:
         return ff_target(H, L=L, A=A, T=T)
     if L is None:
-        assert(A is not None and T is not None)
-        L=rotateA(A,T,rotation_method='orthogonal')
-    q=np.linalg.norm(W*(L-H),'fro')**2
+        assert (A is not None and T is not None)
+        L = rotateA(A, T, rotation_method='orthogonal')
+    q = np.linalg.norm(W * (L - H), 'fro')**2
     return q
 
 
-
-
 class unittests(unittest.TestCase):
-
     @staticmethod
     def str2matrix(A):
-        A=A.lstrip().rstrip().split('\n')
-        A=np.array([row.split() for row in A]).astype(np.float)
+        A = A.lstrip().rstrip().split('\n')
+        A = np.array([row.split() for row in A]).astype(np.float)
         return A
 
     @classmethod
@@ -721,9 +745,12 @@ class unittests(unittest.TestCase):
         Quartimax example
         http://www.stat.ucla.edu/research/gpa
         """
-        A=self.get_A()
-        vgQ = lambda L=None, A=None, T=None: orthomax_objective(L=L, A=A, T=T, gamma=0,
-               return_gradient=True)
+        A = self.get_A()
+
+        def vgQ(L=None, A=None, T=None):
+            return orthomax_objective(
+                L=L, A=A, T=T, gamma=0, return_gradient=True)
+
         L, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
         table_required = self.str2matrix("""
          0.00000   -0.72073   -0.65498    1.00000
@@ -749,50 +776,90 @@ class unittests(unittest.TestCase):
         0.19801   0.71468
         0.30786   0.65933
         """)
-        self.assertTrue(np.allclose(table,table_required,atol=1e-05))
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
+        self.assertTrue(np.allclose(table, table_required, atol=1e-05))
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
+
         #oblimin criterion gives same result
-        vgQ = lambda L=None, A=None, T=None: oblimin_objective(L=L, A=A, T=T, gamma=0,
-                      rotation_method='orthogonal', return_gradient=True)
-        L_oblimin, phi2, T2, table2 = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
-        self.assertTrue(np.allclose(L,L_oblimin,atol=1e-05))
+        def vgQ(L=None, A=None, T=None):
+            return oblimin_objective(
+                L=L,
+                A=A,
+                T=T,
+                gamma=0,
+                rotation_method='orthogonal',
+                return_gradient=True)
+
+        L_oblimin, phi2, T2, table2 = GPA(
+            A, vgQ=vgQ, rotation_method='orthogonal')
+        self.assertTrue(np.allclose(L, L_oblimin, atol=1e-05))
         #derivative free quartimax
-        A, table_required, L_required = self.get_quartimax_example_derivative_free()
-        ff = lambda L=None, A=None, T=None: orthomax_objective(L=L, A=A, T=T, gamma=0, return_gradient=False)
+        A, table_required, L_required = self.get_quartimax_example_derivative_free(
+        )
+
+        def ff(L=None, A=None, T=None):
+            return orthomax_objective(
+                L=L, A=A, T=T, gamma=0, return_gradient=False)
+
         L, phi, T, table = GPA(A, ff=ff, rotation_method='orthogonal')
-        self.assertTrue(np.allclose(table,table_required,atol=1e-05))
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
+        self.assertTrue(np.allclose(table, table_required, atol=1e-05))
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
 
     def test_equivalence_orthomax_oblimin(self):
         """
         These criteria should be equivalent when restricted to orthogonal rotation.
         See Hartman 1976 page 299.
         """
-        A=self.get_A()
-        gamma=0 #quartimax
-        vgQ = lambda L=None, A=None, T=None: orthomax_objective(L=L, A=A, T=T, gamma=gamma,
-               return_gradient=True)
-        L_orthomax, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
-        vgQ = lambda L=None, A=None, T=None: oblimin_objective(L=L, A=A, T=T, gamma=gamma,
-                      rotation_method='orthogonal', return_gradient=True)
-        L_oblimin, phi2, T2, table2 = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
-        self.assertTrue(np.allclose(L_orthomax,L_oblimin,atol=1e-05))
-        gamma=1 #varimax
-        vgQ = lambda L=None, A=None, T=None: orthomax_objective(L=L, A=A, T=T, gamma=gamma,
-               return_gradient=True)
-        L_orthomax, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
-        vgQ = lambda L=None, A=None, T=None: oblimin_objective(L=L, A=A, T=T, gamma=gamma,
-                      rotation_method='orthogonal', return_gradient=True)
-        L_oblimin, phi2, T2, table2 = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
-        self.assertTrue(np.allclose(L_orthomax,L_oblimin,atol=1e-05))
+        A = self.get_A()
+        gamma = 0  #quartimax
+
+        def vgQ(L=None, A=None, T=None):
+            return orthomax_objective(
+                L=L, A=A, T=T, gamma=gamma, return_gradient=True)
+
+        L_orthomax, phi, T, table = GPA(
+            A, vgQ=vgQ, rotation_method='orthogonal')
+
+        def vgQ(L=None, A=None, T=None):
+            return oblimin_objective(
+                L=L,
+                A=A,
+                T=T,
+                gamma=gamma,
+                rotation_method='orthogonal',
+                return_gradient=True)
+
+        L_oblimin, phi2, T2, table2 = GPA(
+            A, vgQ=vgQ, rotation_method='orthogonal')
+        self.assertTrue(np.allclose(L_orthomax, L_oblimin, atol=1e-05))
+        gamma = 1  #varimax
+
+        def vgQ(L=None, A=None, T=None):
+            return orthomax_objective(
+                L=L, A=A, T=T, gamma=gamma, return_gradient=True)
+
+        L_orthomax, phi, T, table = GPA(
+            A, vgQ=vgQ, rotation_method='orthogonal')
+
+        def vgQ(L=None, A=None, T=None):
+            return oblimin_objective(
+                L=L,
+                A=A,
+                T=T,
+                gamma=gamma,
+                rotation_method='orthogonal',
+                return_gradient=True)
+
+        L_oblimin, phi2, T2, table2 = GPA(
+            A, vgQ=vgQ, rotation_method='orthogonal')
+        self.assertTrue(np.allclose(L_orthomax, L_oblimin, atol=1e-05))
 
     def test_orthogonal_target(self):
         """
         Rotation towards target matrix example
         http://www.stat.ucla.edu/research/gpa
         """
-        A=self.get_A()
-        H= self.str2matrix("""
+        A = self.get_A()
+        H = self.str2matrix("""
           .8 -.3
           .8 -.4
           .7 -.4
@@ -802,7 +869,10 @@ class unittests(unittest.TestCase):
           .5  .4
           .6  .3
         """)
-        vgQ = lambda L=None, A=None, T=None: vgQ_target(H,L=L,A=A,T=T)
+
+        def vgQ(L=None, A=None, T=None):
+            return vgQ_target(H, L=L, A=A, T=T)
+
         L, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
         table_required = self.str2matrix("""
         0.00000   0.05925  -0.61244   1.00000
@@ -826,26 +896,35 @@ class unittests(unittest.TestCase):
         0.58020   0.46189
         0.63656   0.35255
         """)
-        self.assertTrue(np.allclose(table,table_required,atol=1e-05))
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
-        ff = lambda L=None, A=None, T=None: ff_target(H,L=L,A=A,T=T)
+        self.assertTrue(np.allclose(table, table_required, atol=1e-05))
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
+
+        def ff(L=None, A=None, T=None):
+            return ff_target(H, L=L, A=A, T=T)
+
         L2, phi, T2, table = GPA(A, ff=ff, rotation_method='orthogonal')
-        self.assertTrue(np.allclose(L,L2,atol=1e-05))
-        self.assertTrue(np.allclose(T,T2,atol=1e-05))
-        vgQ = lambda L=None, A=None, T=None: vgQ_target(H,L=L,A=A,T=T, rotation_method='oblique')
+        self.assertTrue(np.allclose(L, L2, atol=1e-05))
+        self.assertTrue(np.allclose(T, T2, atol=1e-05))
+
+        def vgQ(L=None, A=None, T=None):
+            return vgQ_target(H, L=L, A=A, T=T, rotation_method='oblique')
+
         L, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='oblique')
-        ff = lambda L=None, A=None, T=None: ff_target(H,L=L,A=A,T=T, rotation_method='oblique')
+
+        def ff(L=None, A=None, T=None):
+            return ff_target(H, L=L, A=A, T=T, rotation_method='oblique')
+
         L2, phi, T2, table = GPA(A, ff=ff, rotation_method='oblique')
-        self.assertTrue(np.allclose(L,L2,atol=1e-05))
-        self.assertTrue(np.allclose(T,T2,atol=1e-05))
+        self.assertTrue(np.allclose(L, L2, atol=1e-05))
+        self.assertTrue(np.allclose(T, T2, atol=1e-05))
 
     def test_orthogonal_partial_target(self):
         """
         Rotation towards target matrix example
         http://www.stat.ucla.edu/research/gpa
         """
-        A=self.get_A()
-        H= self.str2matrix("""
+        A = self.get_A()
+        H = self.str2matrix("""
           .8 -.3
           .8 -.4
           .7 -.4
@@ -855,7 +934,7 @@ class unittests(unittest.TestCase):
           .5  .4
           .6  .3
         """)
-        W= self.str2matrix("""
+        W = self.str2matrix("""
         1 0
         0 1
         0 0
@@ -865,7 +944,10 @@ class unittests(unittest.TestCase):
         0 1
         1 0
         """)
-        vgQ = lambda L=None, A=None, T=None: vgQ_partial_target(H, W, L=L,A=A,T=T)
+
+        def vgQ(L=None, A=None, T=None):
+            return vgQ_partial_target(H, W, L=L, A=A, T=T)
+
         L, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
         table_required = self.str2matrix("""
          0.00000    0.02559   -0.84194    1.00000
@@ -890,76 +972,134 @@ class unittests(unittest.TestCase):
         0.57565   0.46754
         0.63308   0.35876
         """)
-        self.assertTrue(np.allclose(table,table_required,atol=1e-05))
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
-        ff = lambda L=None, A=None, T=None: ff_partial_target(H,W,L=L,A=A,T=T)
+        self.assertTrue(np.allclose(table, table_required, atol=1e-05))
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
+
+        def ff(L=None, A=None, T=None):
+            return ff_partial_target(H, W, L=L, A=A, T=T)
+
         L2, phi, T2, table = GPA(A, ff=ff, rotation_method='orthogonal')
-        self.assertTrue(np.allclose(L,L2,atol=1e-05))
-        self.assertTrue(np.allclose(T,T2,atol=1e-05))
+        self.assertTrue(np.allclose(L, L2, atol=1e-05))
+        self.assertTrue(np.allclose(T, T2, atol=1e-05))
 
     def test_oblimin(self):
         #quartimin
         A, table_required, L_required = self.get_quartimin_example()
-        vgQ = lambda L=None, A=None, T=None: oblimin_objective(L=L, A=A, T=T, gamma=0, rotation_method='oblique')
+
+        def vgQ(L=None, A=None, T=None):
+            return oblimin_objective(
+                L=L, A=A, T=T, gamma=0, rotation_method='oblique')
+
         L, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='oblique')
-        self.assertTrue(np.allclose(table,table_required,atol=1e-05))
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
+        self.assertTrue(np.allclose(table, table_required, atol=1e-05))
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
+
         #quartimin derivative free
-        ff = lambda L=None, A=None, T=None: oblimin_objective(L=L, A=A, T=T, gamma=0, rotation_method='oblique', return_gradient=False)
+        def ff(L=None, A=None, T=None):
+            return oblimin_objective(
+                L=L,
+                A=A,
+                T=T,
+                gamma=0,
+                rotation_method='oblique',
+                return_gradient=False)
+
         L, phi, T, table = GPA(A, ff=ff, rotation_method='oblique')
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
-        self.assertTrue(np.allclose(table,table_required,atol=1e-05))
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
+        self.assertTrue(np.allclose(table, table_required, atol=1e-05))
         #biquartimin
         A, table_required, L_required = self.get_biquartimin_example()
-        vgQ = lambda L=None, A=None, T=None: oblimin_objective(L=L, A=A, T=T, gamma=1/2, rotation_method='oblique')
+
+        def vgQ(L=None, A=None, T=None):
+            return oblimin_objective(
+                L=L, A=A, T=T, gamma=1 / 2, rotation_method='oblique')
+
         L, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='oblique')
-        self.assertTrue(np.allclose(table,table_required,atol=1e-05))
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
+        self.assertTrue(np.allclose(table, table_required, atol=1e-05))
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
         #quartimin derivative free
-        A, table_required, L_required = self.get_biquartimin_example_derivative_free()
-        ff = lambda L=None, A=None, T=None: oblimin_objective(L=L, A=A, T=T, gamma=1/2, rotation_method='oblique', return_gradient=False)
+        A, table_required, L_required = self.get_biquartimin_example_derivative_free(
+        )
+
+        def ff(L=None, A=None, T=None):
+            return oblimin_objective(
+                L=L,
+                A=A,
+                T=T,
+                gamma=1 / 2,
+                rotation_method='oblique',
+                return_gradient=False)
+
         L, phi, T, table = GPA(A, ff=ff, rotation_method='oblique')
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
-        self.assertTrue(np.allclose(table,table_required,atol=1e-05))
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
+        self.assertTrue(np.allclose(table, table_required, atol=1e-05))
 
     def test_CF(self):
         #quartimax
-        A, table_required, L_required = self.get_quartimax_example_derivative_free()
-        vgQ = lambda L=None, A=None, T=None: CF_objective(L=L, A=A, T=T,
-                                                          kappa=0,
-                                                          rotation_method='orthogonal',
-                                                          return_gradient=True)
-        L, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
-        #quartimax derivative free
-        ff = lambda L=None, A=None, T=None: CF_objective(L=L, A=A, T=T,
-                                                         kappa=0,
-                                                         rotation_method='orthogonal',
-                                                         return_gradient=False)
-        L, phi, T, table = GPA(A, ff=ff, rotation_method='orthogonal')
-        self.assertTrue(np.allclose(L,L_required,atol=1e-05))
-        #varimax
-        p,k=A.shape
-        vgQ = lambda L=None, A=None, T=None: orthomax_objective(L=L, A=A, T=T,
-                                                                gamma=1,
-                                                                return_gradient=True)
-        L_vm, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
-        vgQ = lambda L=None, A=None, T=None: CF_objective(L=L, A=A, T=T,
-                                                          kappa=1/p,
-                                                          rotation_method='orthogonal',
-                                                          return_gradient=True)
-        L_CF, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
-        ff = lambda L=None, A=None, T=None: CF_objective(L=L, A=A, T=T,
-                                                         kappa=1/p,
-                                                         rotation_method='orthogonal',
-                                                         return_gradient=False)
-        L_CF_df, phi, T, table = GPA(A, ff=ff, rotation_method='orthogonal')
-        self.assertTrue(np.allclose(L_vm,L_CF,atol=1e-05))
-        self.assertTrue(np.allclose(L_CF,L_CF_df,atol=1e-05))
+        A, table_required, L_required = self.get_quartimax_example_derivative_free(
+        )
 
-if __name__ == '__main__': # run only if this file is run directly and not when imported
-    run_unit_tests=True
-    test_only = list() # if list is empty then test all
+        def vgQ(L=None, A=None, T=None):
+            return CF_objective(
+                L=L,
+                A=A,
+                T=T,
+                kappa=0,
+                rotation_method='orthogonal',
+                return_gradient=True)
+
+        L, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
+
+        #quartimax derivative free
+        def ff(L=None, A=None, T=None):
+            return CF_objective(
+                L=L,
+                A=A,
+                T=T,
+                kappa=0,
+                rotation_method='orthogonal',
+                return_gradient=False)
+
+        L, phi, T, table = GPA(A, ff=ff, rotation_method='orthogonal')
+        self.assertTrue(np.allclose(L, L_required, atol=1e-05))
+        #varimax
+        p, k = A.shape
+
+        def vgQ(L=None, A=None, T=None):
+            return orthomax_objective(
+                L=L, A=A, T=T, gamma=1, return_gradient=True)
+
+        L_vm, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
+
+        def vgQ(L=None, A=None, T=None):
+            return CF_objective(
+                L=L,
+                A=A,
+                T=T,
+                kappa=1 / p,
+                rotation_method='orthogonal',
+                return_gradient=True)
+
+        L_CF, phi, T, table = GPA(A, vgQ=vgQ, rotation_method='orthogonal')
+
+        def ff(L=None, A=None, T=None):
+            return CF_objective(
+                L=L,
+                A=A,
+                T=T,
+                kappa=1 / p,
+                rotation_method='orthogonal',
+                return_gradient=False)
+
+        L_CF_df, phi, T, table = GPA(A, ff=ff, rotation_method='orthogonal')
+        self.assertTrue(np.allclose(L_vm, L_CF, atol=1e-05))
+        self.assertTrue(np.allclose(L_CF, L_CF_df, atol=1e-05))
+
+
+if __name__ == '__main__':  # run only if this file is run directly and not when imported
+    run_unit_tests = True
+    test_only = list()  # if list is empty then test all
     #test_only.append('test_CF')
     if run_unit_tests:
         if len(test_only) > 0:
@@ -971,6 +1111,7 @@ if __name__ == '__main__': # run only if this file is run directly and not when 
             #unittest.main()
             suite = unittest.TestLoader().loadTestsFromTestCase(unittests)
             unittest.TextTestRunner(verbosity=2).run(suite)
-    else: # run a basic example
-        A = np.random.randn(8,2)
-        L, phi, T, table = GPA(A, vgQ=vgQ_quartimax, rotation_method='orthogonal')
+    else:  # run a basic example
+        A = np.random.randn(8, 2)
+        L, phi, T, table = GPA(
+            A, vgQ=vgQ_quartimax, rotation_method='orthogonal')
