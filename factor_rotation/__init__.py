@@ -25,5 +25,6 @@ References
 
 #__all__ = ['wrappers']
 
-from ._analytic_rotation import procrustes, promax, target_rotation
-from ._wrappers import rotate_factors
+from factor_rotation._wrappers import rotate_factors
+
+from factor_rotation._analytic_rotation import target_rotation, procrustes, promax
